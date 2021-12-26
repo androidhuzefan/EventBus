@@ -18,6 +18,8 @@ package org.greenrobot.eventbus;
 
 /**
  * Posts events in background.
+ *
+ * 保证任一时间只且仅能有一个任务会被线程池执行的特性，asyncPoster则是异步运行的，可以同时接收多个任务
  * 
  * @author Markus
  */

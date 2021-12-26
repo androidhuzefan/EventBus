@@ -75,6 +75,9 @@ public class EventBusAnnotationProcessor extends AbstractProcessor {
         return SourceVersion.latest();
     }
 
+    //获取订阅方法
+    //检查订阅方法
+    //生成索引类
     @Override
     public boolean process(Set<? extends TypeElement> annotations, RoundEnvironment env) {
         Messager messager = processingEnv.getMessager();
@@ -109,10 +112,13 @@ public class EventBusAnnotationProcessor extends AbstractProcessor {
                 messager.printMessage(Diagnostic.Kind.ERROR,
                         "Unexpected processing state: annotations still available after writing.");
             }
+            // 根据 Subscribe 注解得到对应的所有订阅方法
             collectSubscribers(annotations, env, messager);
+            // 检查这些订阅方法，过滤掉不符合要求的
             checkForSubscribersToSkip(messager, indexPackage);
 
             if (!methodsByClass.isEmpty()) {
+                //生成索引类
                 createInfoIndexFile(index);
             } else {
                 messager.printMessage(Diagnostic.Kind.WARNING, "No @Subscribe annotations found");
@@ -127,12 +133,16 @@ public class EventBusAnnotationProcessor extends AbstractProcessor {
     }
 
     private void collectSubscribers(Set<? extends TypeElement> annotations, RoundEnvironment env, Messager messager) {
+        //遍历注解
         for (TypeElement annotation : annotations) {
             Set<? extends Element> elements = env.getElementsAnnotatedWith(annotation);
+            //遍历声明注解的参数类型
             for (Element element : elements) {
                 if (element instanceof ExecutableElement) {
+                    //获取订阅方法
                     ExecutableElement method = (ExecutableElement) element;
                     if (checkHasNoErrors(method, messager)) {
+                        //缓存订阅方法
                         TypeElement classElement = (TypeElement) method.getEnclosingElement();
                         methodsByClass.putElement(classElement, method);
                     }

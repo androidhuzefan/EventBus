@@ -27,6 +27,18 @@ import java.util.concurrent.ExecutorService;
 import java.util.logging.Level;
 
 /**
+ * EventBus3.x使用的是编译时注解，Java文件会编译成.class文件，再对class文件进行打包等一系列处理。
+ * 在编译成.class文件时，EventBus会使用EventBusAnnotationProcessor注解处理器读取@Subscribe()注解并解析、处理其中的信息，然后生成Java类来保存所有订阅者的订阅信息。
+ * 这样就创建出了对文件或类的索引关系，并将其编入到apk中
+ *
+ * 从EventBus3.0开始使用了对象池缓存减少了创建对象的开销
+ *
+ * 1、订阅者：EventBus.getDefault().register(this)；
+ * 2、发布者：EventBus.getDefault().post(new CollectEvent())；
+ * 3、订阅者：EventBus.getDefault().unregister(this)
+ *
+ * register是强引用,它会让对象无法得到内存回收，导致内存泄露。所以必须在unregister方法中释放对象所占的内存
+ *
  * EventBus is a central publish/subscribe event system for Java and Android.
  * Events are posted ({@link #post(Object)}) to the bus, which delivers it to subscribers that have a matching handler
  * method for the event type.
@@ -47,8 +59,12 @@ public class EventBus {
     private static final EventBusBuilder DEFAULT_BUILDER = new EventBusBuilder();
     private static final Map<Class<?>, List<Class<?>>> eventTypesCache = new HashMap<>();
 
+    //其key为 Event 类型，value为 Subscription
     private final Map<Class<?>, CopyOnWriteArrayList<Subscription>> subscriptionsByEventType;
+    //key为subscriber对象，value为subscriber对象中所有的 Event 类型链表， 使用中仅用于判断某个对象是否注册过
     private final Map<Object, List<Class<?>>> typesBySubscriber;
+    //我们都知道普通事件是先注册，然后发送事件才能收到；而粘性事件，在发送事件之后再订阅该事件也能收到。并且，粘性事件会保存在内存中，每次进入都会去内存中查找获取最新的粘性事件，除非你手动解除注册
+    //它是专用于粘性事件处理的一个字段，key为事件的Class对象，value为当前的事件
     private final Map<Class<?>, Object> stickyEvents;
 
     private final ThreadLocal<PostingThreadState> currentPostingThreadState = new ThreadLocal<PostingThreadState>() {
@@ -60,6 +76,7 @@ public class EventBus {
 
     // @Nullable
     private final MainThreadSupport mainThreadSupport;
+    //主线程事件发送器
     // @Nullable
     private final Poster mainThreadPoster;
     private final BackgroundPoster backgroundPoster;
@@ -111,22 +128,38 @@ public class EventBus {
 
     EventBus(EventBusBuilder builder) {
         logger = builder.getLogger();
+
+        // 并且其key为 Event 类型，value为 Subscription链表
+        // 这里的Subscription是一个订阅信息对象，它里面保存了两个重要的字段，一个是类型为 Object 的 subscriber，
+        // 该字段即为注册的对象（在 Android 中时通常是 Activity对象）；另一个是 类型为SubscriberMethod 的 subscriberMethod，
+        // 它就是被@Subscribe注解的那个订阅方法，里面保存了一个重要的字段eventType，它是 Class<?> 类型的，代表了 Event 的类型
         subscriptionsByEventType = new HashMap<>();
+        // 它的key为subscriber对象，value为subscriber对象中所有的 Event 类型链表，日常使用中仅用于判断某个对象是否注册过
         typesBySubscriber = new HashMap<>();
         stickyEvents = new ConcurrentHashMap<>();
+
+        //三个不同类型的事件发送器
         mainThreadSupport = builder.getMainThreadSupport();
+        //主线程事件发送器
         mainThreadPoster = mainThreadSupport != null ? mainThreadSupport.createPoster(this) : null;
+        //后台事件发送器
         backgroundPoster = new BackgroundPoster(this);
+        //异步运行的，可以同时接收多个任务
         asyncPoster = new AsyncPoster(this);
+
         indexCount = builder.subscriberInfoIndexes != null ? builder.subscriberInfoIndexes.size() : 0;
+
         subscriberMethodFinder = new SubscriberMethodFinder(builder.subscriberInfoIndexes,
                 builder.strictMethodVerification, builder.ignoreGeneratedIndex);
+
         logSubscriberExceptions = builder.logSubscriberExceptions;
         logNoSubscriberMessages = builder.logNoSubscriberMessages;
         sendSubscriberExceptionEvent = builder.sendSubscriberExceptionEvent;
         sendNoSubscriberEvent = builder.sendNoSubscriberEvent;
         throwSubscriberException = builder.throwSubscriberException;
+
         eventInheritance = builder.eventInheritance;
+
         executorService = builder.executorService;
     }
 
@@ -140,9 +173,11 @@ public class EventBus {
      */
     public void register(Object subscriber) {
         Class<?> subscriberClass = subscriber.getClass();
+        //根据当前注册类获取 subscriberMethods这个订阅方法列表
         List<SubscriberMethod> subscriberMethods = subscriberMethodFinder.findSubscriberMethods(subscriberClass);
         synchronized (this) {
             for (SubscriberMethod subscriberMethod : subscriberMethods) {
+                // 对 subscriberMethods 中每个 SubscriberMethod 进行订阅
                 subscribe(subscriber, subscriberMethod);
             }
         }
@@ -218,6 +253,7 @@ public class EventBus {
     }
 
     public synchronized boolean isRegistered(Object subscriber) {
+        //目的是用来判断这个 Subscriber对象 是否已被注册过
         return typesBySubscriber.containsKey(subscriber);
     }
 
@@ -493,8 +529,8 @@ public class EventBus {
     /**
      * Invokes the subscriber if the subscriptions is still active. Skipping subscriptions prevents race conditions
      * between {@link #unregister(Object)} and event delivery. Otherwise the event might be delivered after the
-     * subscriber unregistered. This is particularly important for main thread delivery and registrations bound to the
-     * live cycle of an Activity or Fragment.
+     * subscriber unregistered.
+     * This is particularly important for main thread delivery and registrations bound to the live cycle of an Activity or Fragment.
      */
     void invokeSubscriber(PendingPost pendingPost) {
         Object event = pendingPost.event;

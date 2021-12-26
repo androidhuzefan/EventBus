@@ -20,6 +20,10 @@ import android.os.Looper;
 import android.os.Message;
 import android.os.SystemClock;
 
+/**
+ * 可以将订阅信息和对应的事件进行入队，然后通过 handler 去发送一个消息，在 handler 的 handleMessage 中去执行方法
+ */
+
 public class HandlerPoster extends Handler implements Poster {
 
     private final PendingPostQueue queue;
@@ -34,6 +38,7 @@ public class HandlerPoster extends Handler implements Poster {
         queue = new PendingPostQueue();
     }
 
+    //可以将订阅信息和对应的事件进行入队，然后通过 handler 去发送一个消息，在 handler 的 handleMessage 中去执行方法
     public void enqueue(Subscription subscription, Object event) {
         PendingPost pendingPost = PendingPost.obtainPendingPost(subscription, event);
         synchronized (this) {

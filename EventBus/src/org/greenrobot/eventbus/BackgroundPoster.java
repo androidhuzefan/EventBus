@@ -20,6 +20,9 @@ import java.util.logging.Level;
 /**
  * Posts events in background.
  *
+ * 通过它的enqueue() 将方法加入到后台的一个队列，最后通过线程池去执行，
+ * 注意，它在 Executor的execute()方法 上添加了 synchronized关键字 并设立 了控制标记flag，保证任一时间只且仅能有一个任务会被线程池执行
+ *
  * @author Markus
  */
 final class BackgroundPoster implements Runnable, Poster {
@@ -27,6 +30,7 @@ final class BackgroundPoster implements Runnable, Poster {
     private final PendingPostQueue queue;
     private final EventBus eventBus;
 
+    //控制标记flag
     private volatile boolean executorRunning;
 
     BackgroundPoster(EventBus eventBus) {

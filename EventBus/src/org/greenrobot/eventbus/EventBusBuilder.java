@@ -31,6 +31,7 @@ import java.util.concurrent.Executors;
  */
 @SuppressWarnings("unused")
 public class EventBusBuilder {
+    //它是一个有则用、无则创建、无数量上限的线程池
     private final static ExecutorService DEFAULT_EXECUTOR_SERVICE = Executors.newCachedThreadPool();
 
     boolean logSubscriberExceptions = true;
@@ -98,7 +99,6 @@ public class EventBusBuilder {
         this.eventInheritance = eventInheritance;
         return this;
     }
-
 
     /**
      * Provide a custom thread pool to EventBus used for async and background event delivery. This is an advanced

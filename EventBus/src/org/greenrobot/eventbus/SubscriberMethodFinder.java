@@ -26,6 +26,10 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
+/**
+ * 从EventBus中抽离出的订阅方法查询的一个对象
+ */
+
 class SubscriberMethodFinder {
     /*
      * In newer class files, compilers may add methods. Those are called bridge or synthetic methods.
@@ -40,6 +44,9 @@ class SubscriberMethodFinder {
 
     private List<SubscriberInfoIndex> subscriberInfoIndexes;
     private final boolean strictMethodVerification;
+
+    // 它用来判断是否使用生成的 APT 代码去优化寻找接收事件的过程，如果开启了的话，那么将会通过 subscriberInfoIndexes 来快速得到接收事件方法的相关信息。
+    // 如果我们没有在项目中接入 EventBus 的 APT，那么可以将 ignoreGeneratedIndex 字段设为 false 以提高性能
     private final boolean ignoreGeneratedIndex;
 
     private static final int POOL_SIZE = 4;
@@ -52,6 +59,7 @@ class SubscriberMethodFinder {
         this.ignoreGeneratedIndex = ignoreGeneratedIndex;
     }
 
+    //根据当前注册类获取 subscriberMethods这个订阅方法列表
     List<SubscriberMethod> findSubscriberMethods(Class<?> subscriberClass) {
         List<SubscriberMethod> subscriberMethods = METHOD_CACHE.get(subscriberClass);
         if (subscriberMethods != null) {
@@ -73,6 +81,7 @@ class SubscriberMethodFinder {
     }
 
     private List<SubscriberMethod> findUsingInfo(Class<?> subscriberClass) {
+        //创建了一个新的 FindState 类
         FindState findState = prepareFindState();
         findState.initForSubscriber(subscriberClass);
         while (findState.clazz != null) {
@@ -147,6 +156,9 @@ class SubscriberMethodFinder {
         return getMethodsAndRelease(findState);
     }
 
+    // 1、通过反射的方式获取订阅者类中的所有声明方法，然后在这些方法里面寻找以 @Subscribe作为注解的方法进行处理。
+    // 2、在经过经过一轮检查，看看 findState.subscriberMethods是否存在，如果没有，将方法名，threadMode，优先级，
+    //    是否为 sticky 方法等信息封装到 SubscriberMethod 对象中，最后添加到 subscriberMethods 列表中。
     private void findUsingReflectionInSingleClass(FindState findState) {
         Method[] methods;
         try {
@@ -209,6 +221,7 @@ class SubscriberMethodFinder {
         boolean skipSuperClasses;
         SubscriberInfo subscriberInfo;
 
+        //这个方法主要做一个初始化、回收对象等工作
         void initForSubscriber(Class<?> subscriberClass) {
             this.subscriberClass = clazz = subscriberClass;
             skipSuperClasses = false;

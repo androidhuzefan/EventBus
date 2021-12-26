@@ -16,7 +16,9 @@
 package org.greenrobot.eventbus;
 
 final class Subscription {
+    //该字段即为注册的对象（在 Android 中通常是 Activity对象）
     final Object subscriber;
+    //它就是被@Subscribe注解的那个订阅方法，里面保存了一个重要的字段eventType，它是 Class<?> 类型的，代表了 Event 的类型
     final SubscriberMethod subscriberMethod;
     /**
      * Becomes false as soon as {@link EventBus#unregister(Object)} is called, which is checked by queued event delivery
